@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NUI &amp; MediaPipe · Cara, Cuerpo y Manos</title>
+  <title>NUI &amp; MediaPipe · Manos, Cara y Cuerpo</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -11,6 +11,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <style>
     body {
       font-family: 'Inter', sans-serif;
@@ -65,12 +67,12 @@
             NUI &amp; MediaPipe · Visión Interactiva
           </h1>
           <p class="text-xs md:text-sm text-slate-400">
-            Interfaz Natural de Usuario (NUI) en tiempo real con MediaPipe Face Mesh y Pose
+            Interfaz Natural de Usuario (NUI) en tiempo real con MediaPipe Hands, Face Mesh y Pose
           </p>
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center gap-3">
+      <div id="camera-controls-top" class="flex flex-wrap items-center gap-3">
         <div id="status-badge" class="px-4 py-2 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-2">
           <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
           Cargando modelos MediaPipe...
@@ -89,19 +91,19 @@
       </div>
       <div class="glass-panel p-4 rounded-2xl text-xs md:text-sm text-slate-300">
         <span class="font-bold text-purple-300 block mb-1">¿Qué es MediaPipe?</span>
-        Es el framework de visión por computadora de Google que detecta puntos clave (<em>landmarks</em>) del rostro, cuerpo y manos en tiempo real directamente en el navegador.
+        Es el framework de visión por computadora de Google que detecta puntos clave (<em>landmarks</em>) de manos, rostro y cuerpo en tiempo real directamente en el navegador.
       </div>
     </div>
 
     <!-- Selector de 3 opciones: Manos, Cara y Cuerpo -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <a href="jellybaby.html" class="glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-emerald-500/30">
+      <button id="tab-manos" type="button" onclick="switchTracker('MANOS')" class="glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-emerald-500/30 text-left">
         <div>
-          <div class="text-xs text-emerald-300 font-semibold">Opción 1 · jellybaby.html</div>
-          <div class="text-base font-bold text-white">🖐️ Manos (Jellybaby 3D)</div>
+          <div class="text-xs text-emerald-300 font-semibold">Opción 1 · Hands + Three.js</div>
+          <div class="text-base font-bold text-white">🖐️ Manos (Jellybaby)</div>
         </div>
-        <i class="fa-solid fa-arrow-up-right-from-square text-emerald-300"></i>
-      </a>
+        <i class="fa-solid fa-hand text-emerald-300 text-lg"></i>
+      </button>
 
       <button id="tab-cara" type="button" onclick="switchTracker('CARA')" class="glass-panel p-4 rounded-2xl flex items-center justify-between transition border-2 border-amber-400 bg-slate-800/90 text-left">
         <div>
@@ -121,8 +123,8 @@
     </div>
   </header>
 
-  <!-- Contenido principal -->
-  <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow items-center">
+  <!-- Contenido principal: Cara y Cuerpo -->
+  <main id="face-pose-main" class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow items-center">
     <!-- Cámara y Canvas -->
     <div id="camera-container" class="lg:col-span-2 relative w-full aspect-[4/3] bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border-4 border-slate-700/60 transition-all duration-500">
       <video id="webcam" class="absolute inset-0 w-full h-full object-cover" playsinline></video>
@@ -219,8 +221,39 @@
     </div>
   </main>
 
+  <!-- Contenido principal: Manos (Jellybaby 3D) -->
+  <section id="jellybaby-section" class="w-full max-w-6xl hidden flex-grow">
+    <div id="jelly-stage" class="relative w-full h-[560px] rounded-3xl overflow-hidden shadow-2xl border-2 border-emerald-400/30 bg-[#e8e9e5] text-[#405343]">
+      <div class="absolute top-5 left-5 z-10 pointer-events-none">
+        <div class="text-[11px] tracking-[4px] uppercase font-sans text-[#405343]/80">A LITTLE SQUISHY WORLD</div>
+        <div class="text-5xl italic font-serif leading-tight">jellybaby.</div>
+        <div class="mt-2 text-xs font-sans leading-relaxed bg-[#f8f9f2]/90 rounded-2xl px-4 py-3 max-w-xs shadow">
+          🖐️ Mueve la mano para pasear<br>
+          ✋ Abre la mano para saltar<br>
+          ✊ Cierra el puño para aplastarte<br>
+          🤏 Pellizca para hacer pop<br>
+          ↕ Sube la mano para cambiar el tono (o usa ratón / Espacio)
+        </div>
+      </div>
+
+      <div class="absolute top-5 right-5 z-20 flex gap-2 font-sans text-xs">
+        <button id="jelly-start" type="button" class="px-4 py-2.5 rounded-full bg-[#f6f7f0] text-[#4b5c40] font-semibold shadow cursor-pointer hover:bg-white transition">
+          📷 Activar cámara y sonido
+        </button>
+        <button id="jelly-mute" type="button" class="px-4 py-2.5 rounded-full bg-[#f6f7f0] text-[#4b5c40] font-semibold shadow cursor-pointer hover:bg-white transition">
+          ♫ Sonido: sí
+        </button>
+      </div>
+
+      <video id="jelly-video" autoplay muted playsinline class="hidden absolute bottom-4 left-4 w-40 rounded-2xl border-2 border-[#f6f0d9] z-20" style="transform: scaleX(-1);"></video>
+      <div id="jelly-status" class="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 rounded-full bg-[#f7f8f2]/95 px-5 py-2.5 text-xs font-sans text-[#405343] shadow">
+        Activa la cámara o mueve el ratón para jugar con Jellybaby
+      </div>
+    </div>
+  </section>
+
   <footer class="w-full max-w-6xl text-center py-4 text-xs text-slate-500 mt-4">
-    MediaPipe Face Mesh &amp; Pose · HTML5 Canvas · Tailwind CSS
+    MediaPipe Hands, Face Mesh &amp; Pose · Three.js · HTML5 Canvas
   </footer>
 
   <script>
@@ -234,8 +267,13 @@
     const cameraAmbientGlow = document.getElementById('camera-ambient-glow');
     const bodyTheme = document.getElementById('body-theme');
 
+    const facePoseMain = document.getElementById('face-pose-main');
+    const jellySection = document.getElementById('jellybaby-section');
+    const cameraControlsTop = document.getElementById('camera-controls-top');
+
     const panelCara = document.getElementById('panel-cara');
     const panelCuerpo = document.getElementById('panel-cuerpo');
+    const tabManos = document.getElementById('tab-manos');
     const tabCara = document.getElementById('tab-cara');
     const tabCuerpo = document.getElementById('tab-cuerpo');
 
@@ -273,7 +311,7 @@
       content.classList.add('scale-95');
     }
 
-    let activeTracker = 'CARA'; // 'CARA' o 'CUERPO'
+    let activeTracker = 'CARA'; // 'MANOS', 'CARA' o 'CUERPO'
     let mpCamera = null;
     let faceMesh = null;
     let pose = null;
@@ -284,21 +322,42 @@
     let winkCooldown = 0;
     const WINK_THRESHOLD = 0.20;
 
-    function switchTracker(mode) {
+    async function switchTracker(mode) {
       activeTracker = mode;
       particles = [];
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+      tabManos.className = 'glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-emerald-500/30 text-left';
+      tabCara.className = 'glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-amber-500/30 text-left';
+      tabCuerpo.className = 'glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-rose-500/30 text-left';
+
+      if (mode === 'MANOS') {
+        if (isRunning && mpCamera) {
+          isRunning = false;
+          await mpCamera.stop();
+          videoPlaceholder.classList.remove('hidden');
+          toggleBtn.textContent = 'Iniciar Cámara';
+        }
+        facePoseMain.classList.add('hidden');
+        cameraControlsTop.classList.add('hidden');
+        jellySection.classList.remove('hidden');
+        tabManos.className = 'glass-panel p-4 rounded-2xl flex items-center justify-between transition border-2 border-emerald-400 bg-slate-800/90 text-left';
+        initJellyThree();
+        return;
+      }
+
+      jellySection.classList.add('hidden');
+      facePoseMain.classList.remove('hidden');
+      cameraControlsTop.classList.remove('hidden');
 
       if (mode === 'CARA') {
         panelCara.classList.remove('hidden');
         panelCuerpo.classList.add('hidden');
         tabCara.className = 'glass-panel p-4 rounded-2xl flex items-center justify-between transition border-2 border-amber-400 bg-slate-800/90 text-left';
-        tabCuerpo.className = 'glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-rose-500/30 text-left';
       } else {
         panelCuerpo.classList.remove('hidden');
         panelCara.classList.add('hidden');
         tabCuerpo.className = 'glass-panel p-4 rounded-2xl flex items-center justify-between transition border-2 border-rose-400 bg-slate-800/90 text-left';
-        tabCara.className = 'glass-panel hover:bg-slate-800/90 p-4 rounded-2xl flex items-center justify-between transition border border-amber-500/30 text-left';
         setFaceMode('NEUTRAL');
       }
     }
@@ -320,7 +379,7 @@
       constructor(x, y, kind, color = null) {
         this.x = x;
         this.y = y;
-        this.kind = kind; // 'angel', 'devil', 'star', 'heart'
+        this.kind = kind;
         this.color = color;
         const angle = Math.random() * Math.PI * 2;
         const speed = 1 + Math.random() * 5;
@@ -723,6 +782,194 @@
         setFaceMode('NEUTRAL');
       }
     });
+
+    // --- JELLYBABY 3D (MANOS) ---
+    let jellyInitialized = false;
+    function initJellyThree() {
+      if (jellyInitialized) return;
+      jellyInitialized = true;
+
+      const stage = document.getElementById('jelly-stage');
+      const w = stage.clientWidth || 960;
+      const h = stage.clientHeight || 560;
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#e8e9e5');
+
+      const cam = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
+      cam.position.set(0, 5.3, 12.8);
+      cam.lookAt(0, 1.05, 0);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+      renderer.shadowMap.enabled = true;
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      stage.prepend(renderer.domElement);
+
+      scene.add(new THREE.HemisphereLight(0xffffff, 0xb9c2b6, 2.1));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 2.7);
+      dirLight.position.set(-3, 9, 6);
+      dirLight.castShadow = true;
+      scene.add(dirLight);
+
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(200, 0.3, 200), new THREE.MeshStandardMaterial({ color: '#e1e3dc', roughness: 0.95 }));
+      floor.position.set(0, -0.18, 0);
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const jelly = new THREE.Group();
+      const bodyRoot = new THREE.Group();
+      jelly.add(bodyRoot);
+      scene.add(jelly);
+
+      const jellyMat = new THREE.MeshPhysicalMaterial({
+        color: '#65d12e', roughness: 0.095, transparent: true, opacity: 0.91,
+        clearcoat: 1, clearcoatRoughness: 0.035, transmission: 0.18, thickness: 1.6
+      });
+
+      const body = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 36), jellyMat);
+      body.position.set(0, 1.05, 0);
+      body.scale.set(1.03, 0.88, 0.78);
+      body.castShadow = true;
+      bodyRoot.add(body);
+
+      const base = new THREE.Mesh(new THREE.SphereGeometry(1, 36, 24), jellyMat);
+      base.position.set(0, 0.48, 0.05);
+      base.scale.set(1.16, 0.35, 0.77);
+      base.castShadow = true;
+      bodyRoot.add(base);
+
+      for (const side of [-1, 1]) {
+        const arm = new THREE.Mesh(new THREE.SphereGeometry(0.32, 24, 18), jellyMat);
+        arm.position.set(side * 0.91, 0.78, 0.08);
+        arm.scale.set(1.1, 0.6, 0.85);
+        bodyRoot.add(arm);
+      }
+
+      const eyeMat = new THREE.MeshStandardMaterial({ color: '#15281a', roughness: 0.12 });
+      for (const x of [-0.29, 0.29]) {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(0.105, 16, 16), eyeMat);
+        eye.position.set(x, 1.08, 0.72);
+        eye.scale.set(0.8, 1.25, 0.48);
+        bodyRoot.add(eye);
+      }
+
+      jelly.position.set(0, 0, 1.3);
+
+      let audioCtx = null;
+      let muted = false;
+      let targetX = 0, targetZ = 1.3, targetPitch = 0.5;
+      let jump = 0, velocityY = 0, squash = 0;
+
+      function initAudio() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtx.resume();
+      }
+
+      function playTone(freq, dur, slide = 1) {
+        if (muted || !audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(50, freq * slide), now + dur);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + dur + 0.02);
+      }
+
+      document.getElementById('jelly-mute').onclick = () => {
+        muted = !muted;
+        document.getElementById('jelly-mute').textContent = muted ? '♫ Sonido: no' : '♫ Sonido: sí';
+      };
+
+      stage.addEventListener('pointermove', (e) => {
+        const r = stage.getBoundingClientRect();
+        targetX = ((e.clientX - r.left) / r.width - 0.5) * 7;
+        targetZ = 1.3 + ((e.clientY - r.top) / r.height - 0.5) * 2.5;
+        targetPitch = 1 - (e.clientY - r.top) / r.height;
+      });
+
+      stage.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        initAudio();
+        if (jump <= 0.02) {
+          velocityY = 0.18;
+          playTone(280 + targetPitch * 240, 0.28, 1.8);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (activeTracker === 'MANOS' && e.code === 'Space') {
+          initAudio();
+          playTone(700 + targetPitch * 400, 0.12, 0.5);
+          squash = 0.25;
+        }
+      });
+
+      document.getElementById('jelly-start').onclick = async () => {
+        initAudio();
+        const jVideo = document.getElementById('jelly-video');
+        const jStatus = document.getElementById('jelly-status');
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+          jVideo.srcObject = stream;
+          await jVideo.play();
+          jVideo.classList.remove('hidden');
+          jStatus.textContent = 'Cámara activa · Muestra tu mano';
+
+          const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+          hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.55 });
+          hands.onResults((res) => {
+            const lm = res.multiHandLandmarks?.[0];
+            if (!lm) return;
+            targetX = (0.5 - lm[9].x) * 7;
+            targetZ = 1.3 + (lm[9].y - 0.5) * 3;
+            targetPitch = 1 - lm[9].y;
+            const pinchDist = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+            if (pinchDist < 0.055) {
+              playTone(750 + targetPitch * 350, 0.1, 0.5);
+              jStatus.textContent = '🤏 ¡Pop!';
+            }
+          });
+
+          let busy = false;
+          async function loopHands() {
+            if (activeTracker === 'MANOS' && jVideo.readyState >= 2 && !busy) {
+              busy = true;
+              try { await hands.send({ image: jVideo }); } catch (_) {}
+              busy = false;
+            }
+            requestAnimationFrame(loopHands);
+          }
+          loopHands();
+        } catch (err) {
+          jStatus.textContent = 'Usa ratón / Espacio o permite la cámara en HTTPS/localhost';
+        }
+      };
+
+      function tick(now) {
+        requestAnimationFrame(tick);
+        if (activeTracker !== 'MANOS') return;
+        const t = now * 0.001;
+        jelly.position.x += (targetX - jelly.position.x) * 0.08;
+        jelly.position.z += (targetZ - jelly.position.z) * 0.08;
+        velocityY -= 0.011;
+        jump += velocityY;
+        if (jump < 0) { jump = 0; velocityY = 0; }
+        jelly.position.y = jump + Math.sin(t * 2.6) * 0.035;
+        squash *= 0.87;
+        bodyRoot.scale.y = 1 - squash;
+        bodyRoot.scale.x = 1 + squash * 0.25;
+        bodyRoot.rotation.z = Math.sin(t * 2.1) * 0.035;
+        renderer.render(scene, cam);
+      }
+      requestAnimationFrame(tick);
+    }
 
     window.addEventListener('DOMContentLoaded', initMediaPipe);
   </script>
