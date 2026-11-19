@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jellybaby Squishy</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #d8d5ce;
+    color: #3d463f;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  canvas { display: block; }
+
+  #hud {
+    position: absolute;
+    top: 4.5%;
+    left: 4%;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  small {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 3.5px;
+    color: #677068;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(44px, 5.2vw, 76px);
+    font-style: italic;
+    font-weight: 700;
+    line-height: 0.98;
+    margin: 8px 0 14px;
+    color: #2f3831;
+  }
+
+  .hint {
+    font-size: 12.5px;
+    line-height: 1.85;
+    background: rgba(247, 245, 240, 0.78);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(61, 70, 63, 0.09);
+    box-shadow: 0 10px 28px rgba(45, 50, 46, 0.07);
+    border-radius: 18px;
+    padding: 13px 17px;
+    max-width: 295px;
+    color: #465048;
+  }
+
+  #controls {
+    position: absolute;
+    right: 24px;
+    top: 24px;
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+  }
+
+  button {
+    border: 1px solid rgba(61, 70, 63, 0.12);
+    border-radius: 24px;
+    background: rgba(247, 245, 240, 0.84);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 11px 16px;
+    color: #353f37;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(45, 50, 46, 0.06);
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  button:hover {
+    background: rgba(255, 254, 250, 0.96);
+    transform: translateY(-1px);
+  }
+
+  button:active {
+    transform: scale(0.97);
+  }
+
+  #status {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 30px;
+    background: rgba(247, 245, 240, 0.84);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(61, 70, 63, 0.1);
+    box-shadow: 0 8px 24px rgba(45, 50, 46, 0.08);
+    padding: 11px 22px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #3d463f;
+    text-align: center;
+    z-index: 3;
+  }
+
+  video {
+    position: absolute;
+    bottom: 18px;
+    left: 18px;
+    width: 165px;
+    border-radius: 16px;
+    transform: scaleX(-1);
+    border: 2px solid rgba(247, 245, 240, 0.9);
+    box-shadow: 0 10px 24px rgba(45, 50, 46, 0.14);
+    display: none;
+    z-index: 3;
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+</head>
+
+<body>
+
+<div id="hud">
+  <small>A LITTLE SQUISHY WORLD</small>
+  <h1>jellybaby.</h1>
+
+  <div class="hint">
+    🖐️ Mueve la mano para pasear<br>
+    ✋ Abre la mano para saltar<br>
+    ✊ Cierra el puño para aplastarte<br>
+    🤏 Pellizca para hacer pop<br>
+    ↕ Sube la mano para cambiar el tono
+  </div>
+</div>
+
+<div id="controls">
+  <button id="start">📷 Activar cámara y sonido</button>
+  <button id="mute">♫ Sonido: sí</button>
+</div>
+
+<video id="video" autoplay muted playsinline></video>
+<div id="status">Activa la cámara para jugar</div>
+
+<script>
+// ===================================
+// 1. ESCENA THREE.JS (FONDO NEUTRO)
+// ===================================
+
+const NEUTRAL_BG = "#d8d5ce";
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(NEUTRAL_BG);
+scene.fog = new THREE.FogExp2(NEUTRAL_BG, 0.022);
+
+const camera = new THREE.PerspectiveCamera(
+  42,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
+
+camera.position.set(0, 5.2, 12.6);
+camera.lookAt(0, 1.0, 0);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true
+});
+
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.88;
+
+document.body.prepend(renderer.domElement);
+
+// ===================================
+// 2. ILUMINACIÓN NEUTRA Y SUAVE
+// ===================================
+
+scene.add(
+  new THREE.HemisphereLight(
+    0xf5f3ee,
+    0xa9a59c,
+    1.35
+  )
+);
+
+const light = new THREE.DirectionalLight(
+  0xfffdf9,
+  1.45
+);
+
+light.position.set(-3.5, 9, 6);
+light.castShadow = true;
+light.shadow.mapSize.set(2048, 2048);
+light.shadow.camera.left = -12;
+light.shadow.camera.right = 12;
+light.shadow.camera.top = 12;
+light.shadow.camera.bottom = -12;
+light.shadow.bias = -0.0005;
+
+scene.add(light);
+
+// ===================================
+// 3. MATERIALES Y ESCENARIO
+// ===================================
+
+function mat(color, roughness = 0.75) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness
+  });
+}
+
+function mesh(geometry, material, x = 0, y = 0, z = 0, parent = scene) {
+  const object = new THREE.Mesh(geometry, material);
+  object.position.set(x, y, z);
+  object.castShadow = true;
+  object.receiveShadow = true;
+  parent.add(object);
+  return object;
+}
+
+function box(w, h, d, material, x, y, z, parent = scene) {
+  return mesh(
+    new THREE.BoxGeometry(w, h, d),
+    material, x, y, z, parent
+  );
+}
+
+const floor = box(
+  220, 0.3, 220,
+  mat("#cfcbc2", 0.96),
+  0, -0.18, 0
+);
+floor.castShadow = false;
+
+const backdrop = box(
+  220, 80, 0.3,
+  mat(NEUTRAL_BG, 1),
+  0, 28, -26
+);
+backdrop.castShadow = false;
+
+// ===================================
+// 4. SOMBRA SUAVE EN EL SUELO
+// ===================================
+
+const shadowCanvas = document.createElement("canvas");
+shadowCanvas.width = 128;
+shadowCanvas.height = 128;
+
+const sc = shadowCanvas.getContext("2d");
+const gradient = sc.createRadialGradient(64, 64, 4, 64, 64, 64);
+gradient.addColorStop(0, "rgba(58, 63, 56, 0.22)");
+gradient.addColorStop(1, "rgba(58, 63, 56, 0)");
+
+sc.fillStyle = gradient;
+sc.fillRect(0, 0, 128, 128);
+
+const blobShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(3.5, 2.6),
+  new THREE.MeshBasicMaterial({
+    map: new THREE.CanvasTexture(shadowCanvas),
+    transparent: true,
+    depthWrite: false
+  })
+);
+
+blobShadow.rotation.x = -Math.PI / 2;
+blobShadow.position.y = 0.012;
+scene.add(blobShadow);
+
+// ===================================
+// 5. PERSONAJE JELLYBABY
+// ===================================
+
+const jelly = new THREE.Group();
+scene.add(jelly);
+
+const bodyRoot = new THREE.Group();
+jelly.add(bodyRoot);
+
+// Material de gelatina suave sin brillo excesivo
+const jellyMaterial = new THREE.MeshPhysicalMaterial({
+  color: "#67c246",
+  roughness: 0.18,
+  metalness: 0,
+  transparent: true,
+  opacity: 0.92,
+  clearcoat: 0.55,
+  clearcoatRoughness: 0.14,
+  transmission: 0.12,
+  thickness: 1.4
+});
+
+// Cuerpo
+const body = mesh(
+  new THREE.SphereGeometry(1, 64, 48),
+  jellyMaterial,
+  0, 1.05, 0,
+  bodyRoot
+);
+body.scale.set(1.03, 0.88, 0.78);
+
+// Base ancha de gelatina
+const base = mesh(
+  new THREE.SphereGeometry(1, 48, 32),
+  jellyMaterial,
+  0, 0.48, 0.05,
+  bodyRoot
+);
+base.scale.set(1.16, 0.35, 0.77);
+
+// Brazos
+const arms = [];
+for (const side of [-1, 1]) {
+  const arm = mesh(
+    new THREE.SphereGeometry(0.32, 32, 24),
+    jellyMaterial,
+    side * 0.91, 0.78, 0.08,
+    bodyRoot
+  );
+  arm.scale.set(1.1, 0.6, 0.85);
+  arms.push({ arm, side });
+}
+
+// Ojos
+const eyeMaterial = mat("#1d2b20", 0.2);
+
+for (const x of [-0.29, 0.29]) {
+  const eye = mesh(
+    new THREE.SphereGeometry(0.105, 24, 24),
+    eyeMaterial,
+    x, 1.08, 0.72,
+    bodyRoot
+  );
+  eye.scale.set(0.8, 1.25, 0.48);
+
+  mesh(
+    new THREE.SphereGeometry(0.026, 12, 12),
+    mat("#f7f5f0", 0.3),
+    x - 0.024, 1.12, 0.777,
+    bodyRoot
+  );
+}
+
+// Mejillas suaves
+for (const x of [-0.52, 0.52]) {
+  const cheek = mesh(
+    new THREE.SphereGeometry(0.11, 20, 16),
+    mat("#e7be92", 0.65),
+    x, 0.83, 0.69,
+    bodyRoot
+  );
+  cheek.scale.set(1.1, 0.55, 0.2);
+}
+
+// Boca
+const mouth = mesh(
+  new THREE.SphereGeometry(0.07, 20, 16),
+  mat("#efe4b4", 0.5),
+  0, 0.76, 0.78,
+  bodyRoot
+);
+mouth.scale.set(1, 0.45, 0.3);
+
+// Reflejo discreto
+const shine = mesh(
+  new THREE.SphereGeometry(0.28, 32, 24),
+  new THREE.MeshBasicMaterial({
+    color: "#e6f5d5",
+    transparent: true,
+    opacity: 0.14
+  }),
+  -0.37, 1.45, 0.54,
+  bodyRoot
+);
+shine.scale.set(0.6, 0.28, 0.12);
+
+jelly.position.set(0, 0, 1.3);
+
+// Partículas suaves al hacer pop
+const popParticles = [];
+const particleGeo = new THREE.SphereGeometry(0.075, 12, 12);
+const particleMat = new THREE.MeshBasicMaterial({
+  color: "#98d977",
+  transparent: true,
+  opacity: 0.75
+});
+
+function spawnPopParticles(origin) {
+  for (let i = 0; i < 10; i++) {
+    const p = new THREE.Mesh(particleGeo, particleMat.clone());
+    p.position.copy(origin);
+    p.position.y += 1.05;
+    const angle = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+    const speed = 0.04 + Math.random() * 0.05;
+    p.userData = {
+      vx: Math.cos(angle) * speed,
+      vy: 0.04 + Math.random() * 0.06,
+      vz: Math.sin(angle) * speed,
+      life: 1
+    };
+    scene.add(p);
+    popParticles.push(p);
+  }
+}
+
+// ===================================
+// 6. DEFORMACIÓN SQUISHY
+// ===================================
+
+const bodyPositions = body.geometry.attributes.position;
+const restBody = new Float32Array(bodyPositions.array);
+
+const basePositions = base.geometry.attributes.position;
+const restBase = new Float32Array(basePositions.array);
+
+function wobbleGeometry(attribute, rest, time, amplitude) {
+  for (let i = 0; i < attribute.count; i++) {
+    const k = i * 3;
+    const x = rest[k];
+    const y = rest[k + 1];
+    const z = rest[k + 2];
+
+    const ripple =
+      Math.sin(time * 9 + y * 7 + x * 4) *
+      Math.cos(time * 6 + z * 6);
+
+    const factor = 1 + amplitude * ripple;
+
+    attribute.array[k] = x * factor;
+    attribute.array[k + 1] =
+      y * (1 + amplitude * 0.7 * Math.sin(time * 8 + x * 5));
+    attribute.array[k + 2] = z * factor;
+  }
+
+  attribute.needsUpdate = true;
+}
+
+// ===================================
+// 7. AUDIO INTERACTIVO
+// ===================================
+
+let audioCtx = null;
+let muted = false;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+function playSound(frequency = 350, duration = 0.2, type = "sine", volume = 0.08, slide = 1) {
+  if (muted || !audioCtx) return;
+
+  const now = audioCtx.currentTime;
+  const oscillator = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(
+    Math.max(40, frequency * slide),
+    now + duration
+  );
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(volume, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.02);
+}
+
+// ===================================
+// 8. VARIABLES DE MOVIMIENTO
+// ===================================
+
+let handDetected = false;
+let targetX = 0;
+let targetZ = 1.3;
+let targetPitch = 0.5;
+
+let handOpen = false;
+let pinch = false;
+let wasOpen = false;
+let wasPinch = false;
+
+let jump = 0;
+let velocityY = 0;
+let squash = 0;
+let fistSquash = 0;
+let popTimer = 0;
+
+function jumpJelly() {
+  if (jump <= 0.02) {
+    velocityY = 0.18;
+    playSound(280 + targetPitch * 240, 0.32, "sine", 0.1, 1.9);
+  }
+}
+
+function popJelly() {
+  squash = 0.34;
+  popTimer = 14;
+  spawnPopParticles(jelly.position);
+  playSound(700 + targetPitch * 400, 0.13, "sine", 0.09, 0.52);
+}
+
+document.getElementById("mute").onclick = () => {
+  muted = !muted;
+  document.getElementById("mute").textContent =
+    muted ? "♫ Sonido: no" : "♫ Sonido: sí";
+};
+
+// Controles alternativos con ratón
+document.addEventListener("pointermove", e => {
+  if (handDetected) return;
+  targetX = (e.clientX / innerWidth - 0.5) * 8;
+  targetZ = 1.3 + (e.clientY / innerHeight - 0.5) * 3;
+  targetPitch = 1 - e.clientY / innerHeight;
+});
+
+document.addEventListener("click", e => {
+  if (e.target.tagName === "BUTTON") return;
+  initAudio();
+  jumpJelly();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    initAudio();
+    popJelly();
+  }
+});
+
+// ===================================
+// 9. MEDIAPIPE - RECONOCIMIENTO
+// ===================================
+
+const video = document.getElementById("video");
+const status = document.getElementById("status");
+
+document.getElementById("start").onclick = async () => {
+  initAudio();
+
+  try {
+    if (typeof Hands === "undefined") {
+      throw new Error("MediaPipe no cargó");
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480 },
+      audio: false
+    });
+
+    video.srcObject = stream;
+    await video.play();
+    video.style.display = "block";
+
+    const hands = new Hands({
+      locateFile: file =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.55
+    });
+
+    hands.onResults(results => {
+      const landmarks = results.multiHandLandmarks?.[0];
+      handDetected = !!landmarks;
+
+      if (!landmarks) {
+        handOpen = false;
+        pinch = false;
+        wasOpen = false;
+        wasPinch = false;
+        fistSquash = 0;
+        status.textContent = "Muestra una mano frente a la cámara";
+        return;
+      }
+
+      const palm = landmarks[9];
+      targetX = (0.5 - palm.x) * 8;
+      targetZ = 1.3 + (palm.y - 0.5) * 3.5;
+      targetPitch = 1 - palm.y;
+
+      let extended = 0;
+      for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) {
+        const tipDistance = Math.hypot(
+          landmarks[tip].x - landmarks[0].x,
+          landmarks[tip].y - landmarks[0].y
+        );
+        const pipDistance = Math.hypot(
+          landmarks[pip].x - landmarks[0].x,
+          landmarks[pip].y - landmarks[0].y
+        );
+        if (tipDistance > pipDistance * 1.16) {
+          extended++;
+        }
+      }
+
+      handOpen = extended >= 3;
+
+      const pinchDistance = Math.hypot(
+        landmarks[4].x - landmarks[8].x,
+        landmarks[4].y - landmarks[8].y
+      );
+      pinch = pinchDistance < 0.055;
+
+      if (handOpen && !wasOpen) {
+        jumpJelly();
+      }
+
+      if (pinch && !wasPinch) {
+        popJelly();
+      }
+
+      fistSquash = (!handOpen && !pinch) ? 0.3 : 0;
+
+      wasOpen = handOpen;
+      wasPinch = pinch;
+
+      if (pinch) {
+        status.textContent = "🤏 ¡Pop!";
+      } else if (handOpen) {
+        status.textContent = "✋ Mano abierta · ¡Salta!";
+      } else {
+        status.textContent = "✊ Puño · Jelly aplastado";
+      }
+    });
+
+    let processing = false;
+
+    async function processCamera() {
+      if (video.readyState >= 2 && !processing) {
+        processing = true;
+        try {
+          await hands.send({ image: video });
+        } catch (error) {
+          console.warn(error);
+        }
+        processing = false;
+      }
+      requestAnimationFrame(processCamera);
+    }
+
+    processCamera();
+    status.textContent = "Cámara activada · Muestra tu mano";
+    document.getElementById("start").textContent = "✓ Cámara activa";
+
+  } catch (error) {
+    status.textContent = "No se pudo abrir la cámara. Usa HTTPS o localhost.";
+    console.error(error);
+  }
+};
+
+// ===================================
+// 10. ANIMACIÓN PRINCIPAL
+// ===================================
+
+let lastTime = performance.now();
+
+function animate(time) {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min((time - lastTime) / 16.67, 2);
+  lastTime = time;
+  const seconds = time * 0.001;
+
+  // Desplazamiento suave e inclinación al caminar
+  const prevX = jelly.position.x;
+  jelly.position.x += (targetX - jelly.position.x) * 0.07 * dt;
+  jelly.position.z += (targetZ - jelly.position.z) * 0.07 * dt;
+  const vx = (jelly.position.x - prevX) / Math.max(dt, 0.01);
+
+  // Gravedad y salto
+  velocityY -= 0.011 * dt;
+  jump += velocityY * dt;
+
+  if (jump < 0) {
+    if (velocityY < -0.045) {
+      squash = 0.24;
+      playSound(175, 0.12, "sine", 0.045, 0.65);
+    }
+    jump = 0;
+    velocityY = 0;
+  }
+
+  jelly.position.y = jump + Math.sin(seconds * 2.6) * 0.032;
+
+  // Sombra sigue al personaje
+  blobShadow.position.x = jelly.position.x;
+  blobShadow.position.z = jelly.position.z;
+  blobShadow.material.opacity = Math.max(0.25, 0.9 - jump * 0.45);
+
+  // Efecto gelatina
+  const wobble = Math.min(
+    0.12,
+    0.02 +
+    Math.abs(velocityY) * 0.38 +
+    squash * 0.2 +
+    (handDetected ? 0.015 : 0)
+  );
+
+  wobbleGeometry(bodyPositions, restBody, seconds, wobble);
+  wobbleGeometry(basePositions, restBase, seconds, wobble * 0.7);
+  body.geometry.computeVertexNormals();
+  base.geometry.computeVertexNormals();
+
+  // Compresión squishy
+  squash *= Math.pow(0.87, dt);
+
+  const targetScaleY = 1 - fistSquash - squash;
+  const targetScaleX = 1 + fistSquash * 0.24 + squash * 0.28;
+
+  bodyRoot.scale.y += (targetScaleY - bodyRoot.scale.y) * 0.16 * dt;
+  bodyRoot.scale.x += (targetScaleX - bodyRoot.scale.x) * 0.16 * dt;
+
+  // Expresión de boca en pop
+  if (popTimer > 0) {
+    popTimer -= dt;
+    mouth.scale.set(1.25, 1.15, 0.4);
+  } else {
+    mouth.scale.set(1, 0.45, 0.3);
+  }
+
+  // Movimiento sutil de bracitos y balanceo
+  for (const { arm, side } of arms) {
+    arm.position.y = 0.78 + Math.sin(seconds * 3.4 + side) * 0.04 + jump * 0.08;
+    arm.rotation.z = -side * (0.18 + Math.sin(seconds * 3.4 + side) * 0.08);
+  }
+
+  const tilt = THREE.MathUtils.clamp(-vx * 0.28, -0.18, 0.18);
+  bodyRoot.rotation.z += (tilt + Math.sin(seconds * 2.1) * 0.03 - bodyRoot.rotation.z) * 0.15 * dt;
+
+  // Actualizar partículas de pop
+  for (let i = popParticles.length - 1; i >= 0; i--) {
+    const p = popParticles[i];
+    p.position.x += p.userData.vx * dt;
+    p.position.y += p.userData.vy * dt;
+    p.position.z += p.userData.vz * dt;
+    p.userData.vy -= 0.003 * dt;
+    p.userData.life -= 0.035 * dt;
+    p.material.opacity = Math.max(0, p.userData.life * 0.7);
+    p.scale.setScalar(Math.max(0.1, p.userData.life));
+
+    if (p.userData.life <= 0) {
+      scene.remove(p);
+      p.geometry.dispose();
+      p.material.dispose();
+      popParticles.splice(i, 1);
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+requestAnimationFrame(animate);
+
+// Adaptación a pantalla
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+
+</body>
+</html>
